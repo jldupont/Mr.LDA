@@ -6,6 +6,12 @@ Please download the latest version from our [GitHub repository](https://github.c
 
 Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
 
+Modifications
+-------------
+
+jld 070912: Adjusted ParseCorpus for handling FileSystem based on URI scheme
+
+
 Install and Build
 ----------
 Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). 

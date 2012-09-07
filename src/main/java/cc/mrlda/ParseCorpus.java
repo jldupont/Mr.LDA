@@ -188,8 +188,11 @@ public class ParseCorpus extends Configured implements Tool {
     String indexPath = outputPath + INDEX;
 
     // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(ParseCorpus.class));
-    fs.delete(new Path(outputPath), true);
+    // jld: FileSystem URI...
+    Path opath=new Path(outputPath);
+    Configuration conf=new JobConf(ParseCorpus.class);
+    FileSystem ofs = opath.getFileSystem(conf);
+    ofs.delete(opath, true);
 
     try {
       PairOfInts pairOfInts = tokenizeDocument(inputPath, indexPath, numberOfMappers,
@@ -212,7 +215,8 @@ public class ParseCorpus extends Configured implements Tool {
       Path documentPath = indexDocument(documentGlobString, documentString,
           termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
     } finally {
-      fs.delete(new Path(indexPath), true);
+      Path ipath=new Path(indexPath);
+      ipath.getFileSystem(conf).delete(ipath, true);
     }
 
     return 0;
@@ -328,7 +332,7 @@ public class ParseCorpus extends Configured implements Tool {
 
     JobConf conf = new JobConf(ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
-    FileSystem fs = FileSystem.get(conf);
+    //FileSystem fs = FileSystem.get(conf);
 
     MultipleOutputs.addMultiNamedOutput(conf, DOCUMENT, SequenceFileOutputFormat.class, Text.class,
         HMapSIW.class);
@@ -372,8 +376,8 @@ public class ParseCorpus extends Configured implements Tool {
   public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
       throws Exception {
     JobConf conf = new JobConf(ParseCorpus.class);
-    FileSystem fs = FileSystem.get(conf);
-
+    //FileSystem fs = FileSystem.get(conf);
+    // jld: FileSystem URI
     Path titleIndexPath = new Path(outputTitle);
 
     String outputTitleFile = titleIndexPath.getParent() + Path.SEPARATOR + Settings.TEMP;
@@ -382,17 +386,18 @@ public class ParseCorpus extends Configured implements Tool {
 
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
-    fs.createNewFile(titleIndexPath);
+    titleIndexPath.getFileSystem(conf).createNewFile(titleIndexPath);
     try {
-      sequenceFileReader = new SequenceFile.Reader(fs, titlePath, conf);
-      sequenceFileWriter = new SequenceFile.Writer(fs, conf, titleIndexPath, IntWritable.class,
+      sequenceFileReader = new SequenceFile.Reader(titlePath.getFileSystem(conf), titlePath, conf);
+      sequenceFileWriter = new SequenceFile.Writer(titleIndexPath.getFileSystem(conf), conf, titleIndexPath, IntWritable.class,
           Text.class);
       exportTitles(sequenceFileReader, sequenceFileWriter);
       sLogger.info("Successfully index all the titles to " + titleIndexPath);
     } finally {
       IOUtils.closeStream(sequenceFileReader);
       IOUtils.closeStream(sequenceFileWriter);
-      fs.delete(new Path(outputTitleFile), true);
+      // jld: same FileSystem as titleIndexPath
+      titleIndexPath.getFileSystem(conf).delete(new Path(outputTitleFile), true);
     }
 
     return titleIndexPath;
@@ -447,7 +452,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path outputTermFile = new Path(outputTerm);
 
     JobConf conf = new JobConf(ParseCorpus.class);
-    FileSystem fs = FileSystem.get(conf);
+    //FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
     sLogger.info(" - input path: " + inputTermFiles);
@@ -476,8 +481,9 @@ public class ParseCorpus extends Configured implements Tool {
     conf.setFloat("corpus.maximum.document.count", maximumDocumentCount);
 
     String outputString = outputTermFile.getParent() + Path.SEPARATOR + Settings.TEMP;
+    // jld
     Path outputPath = new Path(outputString);
-    fs.delete(outputPath, true);
+    outputPath.getFileSystem(conf).delete(outputPath, true);
 
     FileInputFormat.setInputPaths(conf, inputTermFiles);
     FileOutputFormat.setOutputPath(conf, outputPath);
@@ -489,7 +495,8 @@ public class ParseCorpus extends Configured implements Tool {
       sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
           + " seconds");
 
-      fs.rename(new Path(outputString + Path.SEPARATOR + "part-00000"), outputTermFile);
+      Path opath=new Path(outputString + Path.SEPARATOR + "part-00000");
+      opath.getFileSystem(conf).rename(opath, outputTermFile);
       sLogger.info("Successfully index all the terms at " + outputTermFile);
 
       Counters counters = job.getCounters();
@@ -504,7 +511,7 @@ public class ParseCorpus extends Configured implements Tool {
       int leftOverTerms = (int) counters.findCounter(MyCounter.LEFT_OVER_TERMS).getCounter();
       sLogger.info("Total number of left-over terms: " + leftOverTerms);
     } finally {
-      fs.delete(outputPath, true);
+      outputPath.getFileSystem(conf).delete(outputPath, true);
     }
 
     return outputTermFile;
@@ -595,7 +602,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path titleIndexPath = new Path(titleIndex);
 
     JobConf conf = new JobConf(ParseCorpus.class);
-    FileSystem fs = FileSystem.get(conf);
+    //FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
     sLogger.info(" - input path: " + inputDocumentFiles);
@@ -607,9 +614,10 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index document");
 
-    Preconditions.checkArgument(fs.exists(termIndexPath), "Missing term index files...");
+    // jld: FileSystem URI
+    Preconditions.checkArgument(termIndexPath.getFileSystem(conf).exists(termIndexPath), "Missing term index files...");
     DistributedCache.addCacheFile(termIndexPath.toUri(), conf);
-    Preconditions.checkArgument(fs.exists(titleIndexPath), "Missing title index files...");
+    Preconditions.checkArgument(titleIndexPath.getFileSystem(conf).exists(titleIndexPath), "Missing title index files...");
     DistributedCache.addCacheFile(titleIndexPath.toUri(), conf);
 
     conf.setNumMapTasks(numberOfMappers);
