@@ -320,21 +320,26 @@ public class VariationalInference extends Configured implements Tool, Settings {
     sLogger.info(" - informed prior: " + informedPrior);
 
     JobConf conf = new JobConf(VariationalInference.class);
-    FileSystem fs = FileSystem.get(conf);
+    
+    Path outputDir = new Path(outputPath);
+    FileSystem ofs = outputDir.getFileSystem(conf);
 
     // delete the overall output path
-    Path outputDir = new Path(outputPath);
-    if (!resume && fs.exists(outputDir)) {
-      fs.delete(outputDir, true);
-      fs.mkdirs(outputDir);
+    
+    if (!resume && ofs.exists(outputDir)) {
+      ofs.delete(outputDir, true);
+      ofs.mkdirs(outputDir);
     }
 
+    Path eta = informedPrior;
+    FileSystem etafs = eta.getFileSystem(conf);
+    
     if (informedPrior != null) {
-      Path eta = informedPrior;
-      Preconditions.checkArgument(fs.exists(informedPrior) && fs.isFile(informedPrior),
+      
+      Preconditions.checkArgument(etafs.exists(informedPrior) && etafs.isFile(informedPrior),
           "Illegal informed prior file...");
       informedPrior = new Path(outputPath + InformedPrior.ETA);
-      FileUtil.copy(fs, eta, fs, informedPrior, false, conf);
+      FileUtil.copy(etafs, eta, etafs, informedPrior, false, conf);
     }
 
     Path inputDir = new Path(inputPath);
@@ -368,7 +373,9 @@ public class VariationalInference extends Configured implements Tool, Settings {
           alphaVector[i] = Math.random();
         }
         try {
-          sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
+          // jld
+          FileSystem fsr=alphaDir.getFileSystem(conf);
+          sequenceFileWriter = new SequenceFile.Writer(fsr, conf, alphaDir, IntWritable.class,
               DoubleWritable.class);
           exportAlpha(sequenceFileWriter, alphaVector);
         } finally {
@@ -394,17 +401,20 @@ public class VariationalInference extends Configured implements Tool, Settings {
       } else {
         conf.setJobName(VariationalInference.class.getSimpleName() + " - Test");
       }
-      fs = FileSystem.get(conf);
+      // jld
+      FileSystem afs = alphaDir.getFileSystem(conf);
+      FileSystem bfs = betaDir.getFileSystem(conf);
 
       if (iterationCount != 0) {
-        Preconditions.checkArgument(fs.exists(betaDir), "Missing model parameter beta...");
+        Preconditions.checkArgument(bfs.exists(betaDir), "Missing model parameter beta...");
         DistributedCache.addCacheFile(betaDir.toUri(), conf);
       }
-      Preconditions.checkArgument(fs.exists(alphaDir), "Missing model parameter alpha...");
+      Preconditions.checkArgument(afs.exists(alphaDir), "Missing model parameter alpha...");
       DistributedCache.addCacheFile(alphaDir.toUri(), conf);
 
+      FileSystem ipfs = informedPrior.getFileSystem(conf);
       if (informedPrior != null) {
-        Preconditions.checkArgument(fs.exists(informedPrior), "Informed prior does not exist...");
+        Preconditions.checkArgument(ipfs.exists(informedPrior), "Informed prior does not exist...");
         DistributedCache.addCacheFile(informedPrior.toUri(), conf);
       }
 
@@ -461,7 +471,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
       conf.setOutputFormat(SequenceFileOutputFormat.class);
 
       // delete the output directory if it exists already
-      fs.delete(tempDir, true);
+      FileSystem tpfs=tempDir.getFileSystem(conf);
+      tpfs.delete(tempDir, true);
 
       long startTime = System.currentTimeMillis();
       RunningJob job = JobClient.runJob(conf);
@@ -495,28 +506,33 @@ public class VariationalInference extends Configured implements Tool, Settings {
         // TODO: resume got error
         if (iterationCount != 0) {
           // remove old gamma and document output
-          fs.delete(inputDir, true);
+          
+          // jld
+          inputDir.getFileSystem(conf).delete(inputDir, true);
         }
         inputDir = new Path(outputPath + Settings.GAMMA + (iterationCount + 1));
-
-        fs.mkdirs(inputDir);
-        FileStatus[] fileStatus = fs.globStatus(documentGlobDir);
+        FileSystem idfs=inputDir.getFileSystem(conf);
+        idfs.mkdirs(inputDir);
+        
+        FileSystem gdfs=documentGlobDir.getFileSystem(conf);
+        FileStatus[] fileStatus = gdfs.globStatus(documentGlobDir);
         for (FileStatus file : fileStatus) {
           Path newPath = new Path(inputDir.toString() + Path.SEPARATOR + file.getPath().getName());
-          fs.rename(file.getPath(), newPath);
+          Path fp=file.getPath();
+          fp.getFileSystem(conf).rename(fp, newPath);
         }
       }
 
       // update alpha's
       try {
         // load old alpha's into the system
-        sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
+        sequenceFileReader = new SequenceFile.Reader(afs, alphaDir, conf);
         alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
         sLogger.info("Successfully import old alpha vector from file " + alphaDir);
 
         // load alpha sufficient statistics into the system
         double[] alphaSufficientStatistics = null;
-        sequenceFileReader = new SequenceFile.Reader(fs, alphaSufficientStatisticsDir, conf);
+        sequenceFileReader = new SequenceFile.Reader(alphaSufficientStatisticsDir.getFileSystem(conf), alphaSufficientStatisticsDir, conf);
         alphaSufficientStatistics = importAlpha(sequenceFileReader, numberOfTopics);
         sLogger.info("Successfully import alpha sufficient statistics tokens from file "
             + alphaSufficientStatisticsDir);
@@ -528,13 +544,15 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
         // output the new alpha's to the system
         alphaDir = new Path(alphaPath + (iterationCount + 1));
-        sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
+        // jld
+        sequenceFileWriter = new SequenceFile.Writer(afs, conf, alphaDir, IntWritable.class,
             DoubleWritable.class);
         exportAlpha(sequenceFileWriter, alphaVector);
         sLogger.info("Successfully export new alpha vector to file " + alphaDir);
 
         // remove all the alpha sufficient statistics
-        fs.deleteOnExit(alphaSufficientStatisticsDir);
+        // jld
+        alphaSufficientStatisticsDir.getFileSystem(conf).deleteOnExit(alphaSufficientStatisticsDir);
       } finally {
         IOUtils.closeStream(sequenceFileReader);
         IOUtils.closeStream(sequenceFileWriter);

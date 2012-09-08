@@ -101,29 +101,38 @@ public class InformedPrior extends Configured implements Tool {
       System.exit(0);
     }
 
+    // jld: adjust for FileSystem URI...
+    
     // Delete the output directory if it exists already
     JobConf conf = new JobConf(InformedPrior.class);
-    FileSystem fs = FileSystem.get(conf);
+    //FileSystem fs = FileSystem.get(conf);
 
     Path inputPath = new Path(input);
-    Preconditions.checkArgument(fs.exists(inputPath) && fs.isFile(inputPath),
+    FileSystem ifs = inputPath.getFileSystem(conf);
+    
+    Preconditions.checkArgument(ifs.exists(inputPath) && ifs.isFile(inputPath),
         "Illegal input file...");
 
     Path termIndexPath = new Path(termIndex);
-    Preconditions.checkArgument(fs.exists(termIndexPath) && fs.isFile(termIndexPath),
+    FileSystem idxfs = termIndexPath.getFileSystem(conf);
+    
+    Preconditions.checkArgument(idxfs.exists(termIndexPath) && idxfs.isFile(termIndexPath),
         "Illegal term index file...");
 
     Path outputPath = new Path(output);
-    fs.delete(outputPath, true);
+    FileSystem ofs = outputPath.getFileSystem(conf);
+    
+    ofs.delete(outputPath, true);
 
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
     BufferedReader bufferedReader = null;
-    fs.createNewFile(outputPath);
+    ofs.createNewFile(outputPath);
+    
     try {
-      bufferedReader = new BufferedReader(new InputStreamReader(fs.open(inputPath)));
-      sequenceFileReader = new SequenceFile.Reader(fs, termIndexPath, conf);
-      sequenceFileWriter = new SequenceFile.Writer(fs, conf, outputPath, IntWritable.class,
+      bufferedReader = new BufferedReader(new InputStreamReader(ifs.open(inputPath)));
+      sequenceFileReader = new SequenceFile.Reader(idxfs, termIndexPath, conf);
+      sequenceFileWriter = new SequenceFile.Writer(ofs, conf, outputPath, IntWritable.class,
           ArrayListOfIntsWritable.class);
       exportTerms(bufferedReader, sequenceFileReader, sequenceFileWriter);
       sLogger.info("Successfully index the informed prior to " + outputPath);

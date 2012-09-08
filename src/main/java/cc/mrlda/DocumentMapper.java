@@ -100,7 +100,8 @@ public class DocumentMapper extends MapReduceBase implements
       if (inputFiles != null) {
         for (Path path : inputFiles) {
           try {
-            sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
+            // jld: FileSystem URI...
+            sequenceFileReader = new SequenceFile.Reader(path.getFileSystem(conf), path, conf);
 
             if (path.getName().startsWith(Settings.BETA)) {
               // TODO: check whether seeded beta is valid, i.e., a true probability distribution

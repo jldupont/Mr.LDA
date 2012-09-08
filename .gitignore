@@ -8,3 +8,4 @@ ivy/ivy.jar
 lib/
 .DS_Store
 
+/bin

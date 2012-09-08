@@ -73,7 +73,7 @@ public class TermReducer extends MapReduceBase implements
       if (inputFiles != null) {
         for (Path path : inputFiles) {
           try {
-            sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
+            sequenceFileReader = new SequenceFile.Reader(path.getFileSystem(conf), path, conf);
 
             if (path.getName().startsWith(Settings.ALPHA)) {
               continue;
