@@ -83,10 +83,21 @@
     </copy>
   </target>
 
+	
   <target name="jar" depends="compile" description="generate the distribution">
       <jar jarfile="${dist.dir}/mrlda-${version}.jar" basedir="${build.dir}" />
+  		<zipfileset includes="./lib/**.jar" prefix="lib" />
   </target>
 
+  <target name="emr" depends="compile" description="generate the distribution">
+	  <delete>
+	  	<fileset dir="${build.dir}" includes="*.jar" />
+	  </delete>  	
+      <jar jarfile="${dist.dir}/mrlda-${version}.jar" basedir="${build.dir}">
+  		<zipfileset dir="./lib" includes="**.jar" prefix="lib" excludes="hadoop*.*" />
+      </jar>
+  </target>
+	
   <target name="export" depends="compile" description="generate Jar with all libs">
       <jar jarfile="${bin.dir}/Mr.LDA-${version}.jar" basedir="${build.dir}">
           <zipgroupfileset dir="${lib.dir}" includes="*.jar"/>
